@@ -12,6 +12,7 @@ import numpy as np
 
 
 BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_SNR_THRESHOLD = 8.0
 DEFAULT_CSV = (
     BASE_DIR.parent
     / "数据"
@@ -33,9 +34,11 @@ class HistogramStats:
     background_stop: int
     background_match_bin: int
     sa_avg: float
-    ctd: float
-    va: float
+    ctd: float | None
+    va: float | None
     snr: float
+    snr_threshold: float
+    peak_valid: bool
 
 
 def load_histogram(
@@ -146,12 +149,17 @@ def estimate_sa_avg(histogram: np.ndarray) -> tuple[float, int]:
     raise ValueError("bin 1至512内没有累计出现4次及以上的计数值，无法估计sa_avg")
 
 
-def analyze_histogram(histogram: np.ndarray) -> HistogramStats:
-    """寻全局最大峰，计算窗口特征及近似计数SNR。
+def analyze_histogram(
+    histogram: np.ndarray, snr_threshold: float = DEFAULT_SNR_THRESHOLD
+) -> HistogramStats:
+    """只检验全局最大候选峰，SNR通过阈值后才计算ctd和完整va。
 
     30-bin窗口为[peak_bin-15, peak_bin+15)，包含峰值bin；
-    如有多个相同最大值，选择编号最小的bin。
+    如有多个相同最大值，选择编号最小的bin。不合格时peak_valid=False，
+    ctd和va为None；peak_bin及窗口统计仅用于诊断，不再查找其他峰。
     """
+    if not np.isfinite(snr_threshold) or snr_threshold < 0:
+        raise ValueError("SNR阈值必须是有限的非负数")
     histogram = np.asarray(histogram, dtype=np.float64)
     if histogram.ndim != 1 or histogram.size < 30:
         raise ValueError("直方图必须是一维数组且至少包含30个bin")
@@ -170,9 +178,14 @@ def analyze_histogram(histogram: np.ndarray) -> HistogramStats:
     window = histogram[signal_start:signal_stop]
     signal_counts = np.maximum(window - sa_avg, 0.0)
     csum = float(signal_counts.sum())
-    ctd, va = compute_ctd_va(window, signal_start, sa_avg)
-    # 非饱和Poisson近似，暂不计背景估计误差；有效信号保证分母为正。
-    snr = float(csum / np.sqrt(csum + window.size * sa_avg))
+    # 非饱和Poisson近似，暂不计背景估计误差。无净信号时SNR记为0。
+    noise_variance = csum + window.size * sa_avg
+    snr = float(csum / np.sqrt(noise_variance)) if noise_variance > 0 else 0.0
+    peak_valid = csum > 0 and snr >= snr_threshold
+    if peak_valid:
+        ctd, va = compute_ctd_va(window, signal_start, sa_avg)
+    else:
+        ctd, va = None, None
 
     return HistogramStats(
         peak_bin=peak_bin,
@@ -187,6 +200,8 @@ def analyze_histogram(histogram: np.ndarray) -> HistogramStats:
         ctd=ctd,
         va=va,
         snr=snr,
+        snr_threshold=float(snr_threshold),
+        peak_valid=peak_valid,
     )
 
 
@@ -225,16 +240,21 @@ def plot_histogram(
         stats.background_start - 0.5, stats.background_stop - 0.5,
         color="tab:green", alpha=0.12, label="sa_avg search: bins 1-512",
     )
-    axes[0].scatter([peak_bin], [stats.peak_count], color="tab:red", s=20, zorder=3)
-    axes[0].axvline(stats.ctd, color="tab:purple", linestyle="--", linewidth=1)
-    axes[0].set_title(f"Full histogram | ctd = {stats.ctd:.6f} bin", fontsize=10)
+    peak_color = "tab:red" if stats.peak_valid else "gray"
+    axes[0].scatter([peak_bin], [stats.peak_count], color=peak_color, s=20, zorder=3)
+    if stats.ctd is not None:
+        axes[0].axvline(stats.ctd, color="tab:purple", linestyle="--", linewidth=1)
+        full_title = f"Full histogram | ctd = {stats.ctd:.6f} bin"
+    else:
+        full_title = "Full histogram | no valid peak"
+    axes[0].set_title(full_title, fontsize=10)
     axes[0].set_xlim(-0.5, histogram.size - 0.5)
     axes[0].legend(loc="upper right", fontsize=8)
 
     axes[1].step(
         bins[left:right], histogram[left:right], where="mid", color="tab:blue"
     )
-    axes[1].scatter([peak_bin], [histogram[peak_bin]], color="tab:red", s=25, zorder=3)
+    axes[1].scatter([peak_bin], [histogram[peak_bin]], color=peak_color, s=25, zorder=3)
     axes[1].axvspan(
         stats.signal_start - 0.5, stats.signal_stop - 0.5,
         color="tab:orange", alpha=0.2, label="30-bin csum window",
@@ -243,13 +263,18 @@ def plot_histogram(
         stats.sa_avg, color="tab:green", linestyle="--", linewidth=1,
         label=f"sa_avg = {stats.sa_avg:.6g}",
     )
-    axes[1].axvline(
-        stats.ctd, color="tab:purple", linestyle="--", linewidth=1.2,
-        label=f"ctd = {stats.ctd:.6f} bin",
-    )
+    if stats.ctd is not None:
+        axes[1].axvline(
+            stats.ctd, color="tab:purple", linestyle="--", linewidth=1.2,
+            label=f"ctd = {stats.ctd:.6f} bin",
+        )
+    if stats.peak_valid:
+        metrics = f"csum = {stats.csum:g} | ctd = {stats.ctd:.6f} bin | va = {stats.va:.6f} bin"
+    else:
+        metrics = f"No valid peak | candidate csum = {stats.csum:g} | ctd, va = invalid"
     axes[1].set_title(
-        f"Peak bin = {peak_bin}, count = {stats.peak_count:g} | snr = {stats.snr:.6g}\n"
-        f"csum = {stats.csum:g} | ctd = {stats.ctd:.6f} bin | va = {stats.va:.6f} bin",
+        f"Candidate bin = {peak_bin}, count = {stats.peak_count:g}"
+        f" | snr = {stats.snr:.6g}, threshold = {stats.snr_threshold:g}\n{metrics}",
         fontsize=10,
     )
     axes[1].set_xlim(left - 0.5, right - 0.5)
@@ -273,12 +298,23 @@ def nonnegative_int(value: str) -> int:
     return number
 
 
+def nonnegative_float(value: str) -> float:
+    number = float(value)
+    if not np.isfinite(number) or number < 0:
+        raise argparse.ArgumentTypeError("请输入有限的非负数")
+    return number
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV, help="CSV数据路径")
     parser.add_argument("--row", type=nonnegative_int, default=0, help="数据行索引，从0开始，不含表头")
     parser.add_argument("--output", type=Path, help="输出PNG路径")
     parser.add_argument("--zoom-radius", type=nonnegative_int, default=25, help="峰值局部图左右各显示多少bin")
+    parser.add_argument(
+        "--snr-threshold", type=nonnegative_float, default=DEFAULT_SNR_THRESHOLD,
+        help=f"有效峰SNR下限，默认{DEFAULT_SNR_THRESHOLD:g}；不合格时不再寻找其他峰",
+    )
     display = parser.add_mutually_exclusive_group()
     display.add_argument("--show", dest="show", action="store_true", help="保存图片后显示直方图（默认）")
     display.add_argument("--no-show", dest="show", action="store_false", help="只保存图片，不显示绘图窗口")
@@ -289,7 +325,7 @@ def main() -> None:
 
     try:
         histogram, metadata = load_histogram(source, args.row)
-        stats = analyze_histogram(histogram)
+        stats = analyze_histogram(histogram, snr_threshold=args.snr_threshold)
     except (OSError, ValueError, IndexError) as exc:
         parser.exit(1, f"加载或统计失败：{exc}\n")
 
@@ -297,7 +333,7 @@ def main() -> None:
     print(f"数据行索引：{args.row}（从0开始）")
     print(f"直方图bin数：{histogram.size}")
     print(f"总计数：{histogram.sum():g}")
-    print(f"峰值bin：{stats.peak_bin}，峰值计数：{stats.peak_count:g}")
+    print(f"全局最大候选bin：{stats.peak_bin}，峰值计数：{stats.peak_count:g}")
     print(f"csum窗口：[{stats.signal_start}, {stats.signal_stop})，共30个bin")
     print(f"csum：{stats.csum:g}（逐bin扣背景、负值置0后求和）")
     print(
@@ -306,8 +342,12 @@ def main() -> None:
     )
     print(f"sa_avg：{stats.sa_avg:.9f}（计数/bin）")
     print(f"snr：{stats.snr:.9g}（csum / sqrt(csum + 窗口长度 × sa_avg)）")
-    print(f"ctd：{stats.ctd:.9f} bin（bin编号作为中心坐标，扣背景后负值置0）")
-    print(f"va：{stats.va:.9f} bin（包含质心所在bin的部分计数）")
+    print(f"SNR阈值：{stats.snr_threshold:g}，有效峰：{'是' if stats.peak_valid else '否'}")
+    if stats.peak_valid:
+        print(f"ctd：{stats.ctd:.9f} bin（bin编号作为中心坐标，扣背景后负值置0）")
+        print(f"va：{stats.va:.9f} bin（包含质心所在bin的部分计数）")
+    else:
+        print("无有效峰：不再寻找其他候选峰，ctd和va均为None。")
     for name in ("POS", "real_distance", "SNR"):
         if name in metadata:
             print(f"原始字段 {name}：{metadata[name]}")
