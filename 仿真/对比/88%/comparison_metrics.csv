@@ -1,0 +1,3 @@
+﻿comparison,total_variation_distance,wasserstein_distance_bins,centroid_difference_bins,va_difference_bins
+monte_carlo_vs_measured_mean,0.0016557137473991598,0.022956473535915352,0.0034898099099578417,0.0008610692380033313
+forward_vs_measured_mean,1.7801910375688657e-05,0.0001695364237420362,0.00014387440760543768,4.436797329887554e-05

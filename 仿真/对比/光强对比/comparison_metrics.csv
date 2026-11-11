@@ -1,0 +1,3 @@
+﻿comparison,total_variation_distance,wasserstein_distance_bins,centroid_difference_bins,va_difference_bins
+normalized_measured,0.132541271682773,19.61034116905721,1.2229813679716415,0.22431616602420945
+normalized_incident,0.04239188678682451,19.40575006985593,0.06505603185958364,0.028057591705689333

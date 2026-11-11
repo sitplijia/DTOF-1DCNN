@@ -1,0 +1,12 @@
+{
+  "source_csv": "D:\\projects\\DTOF+1DCNN\\数据\\无背景光\\31_spad1_event40000_lux0_3%_hist_dspfulldata.csv",
+  "source_rows": 100,
+  "source_window_zero_based": [
+    44,
+    74
+  ],
+  "min_available_probability": 0.955525,
+  "template_centroid_bin": 59.50352094285327,
+  "definition": "invert each source histogram, average per bin, retain peak window, normalize retained signal to sum=1; other bins=0",
+  "source_background": "off-peak measured tails excluded; no extra background subtraction inside peak window"
+}

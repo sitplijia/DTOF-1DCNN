@@ -1,0 +1,16 @@
+{
+  "centroid_folders": [
+    "ctd_256",
+    "ctd_512",
+    "ctd_768",
+    "ctd_1024",
+    "ctd_1280",
+    "ctd_1536",
+    "ctd_1792"
+  ],
+  "centroid_count": 7,
+  "cells_per_centroid": 60,
+  "frames_per_cell": 100,
+  "num_cycles": 5000,
+  "total_histograms": 42000
+}

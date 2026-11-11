@@ -1,0 +1,121 @@
+{
+  "source_csv": "D:\\projects\\DTOF+1DCNN\\数据\\无背景光\\31_spad1_event40000_lux0_3%_hist_dspfulldata.csv",
+  "row_indices": [
+    0,
+    99
+  ],
+  "dataset_label": "无背景光3%",
+  "dataset_id": "lux0_3pct",
+  "measured_frames": 100,
+  "simulated_frames": 100,
+  "num_cycles": 40000,
+  "dead_bins": 120,
+  "min_available": 0.02,
+  "seed": 20261110,
+  "snr_threshold": 8.0,
+  "histogram_bins": 2048,
+  "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
+  "comparison_type": "same-data inverse/forward consistency; not independent validation",
+  "comparison_metrics": [
+    "TV",
+    "Wasserstein W1",
+    "absolute centroid difference",
+    "absolute complete-va difference"
+  ],
+  "metric_definition": "先对各自平均谱按全谱总数归一化为p、q。TV = 0.5 × sum(abs(p - q))，范围0到1；一阶Wasserstein距离W1 = sum(abs(cumsum(p - q)[:-1]))，bin间距为1，单位bin，将各bin质量置于bin中心。两项均使用全部bin，不裁剪尾部或对齐峰位。质心和完整va在同一个主峰窗口内计算，不额外扣背景；复用基线compute_ctd_va，bin i覆盖[i-0.5, i+0.5)，va包含质心所在bin的部分积分，绝非方差。两项差值均取绝对值，单位bin。四项均越小表示越接近；它们描述谱形差异，不衡量绝对光子总数差异。主峰窗口内无有效光子或全谱总量为0时直接报错。",
+  "all_inverted_bins_valid": true,
+  "min_available_probability": 0.955525,
+  "mean_incident_photons_per_cycle": 0.04474751975318195,
+  "mean_incident_photons_per_histogram": 1789.9007901272778,
+  "incident_photons_per_cycle": {
+    "mean": 0.04474751975318195,
+    "std": 0.0010166498033427529,
+    "min": 0.04260412519858705,
+    "max": 0.04802679415429441
+  },
+  "per_frame_forward_roundtrip_max_error_counts": 5.684341886080802e-14,
+  "comparison_window": [
+    44,
+    74
+  ],
+  "forward_vs_measured_mean": {
+    "total_variation_distance": 5.4946599546171155e-06,
+    "wasserstein_distance_bins": 6.602520200954111e-05,
+    "centroid_difference_bins": 1.479298077100566e-05,
+    "va_difference_bins": 3.818486623341499e-06
+  },
+  "monte_carlo_vs_measured_mean": {
+    "total_variation_distance": 0.010942532144896105,
+    "wasserstein_distance_bins": 0.13635335589160427,
+    "centroid_difference_bins": 0.019189765248768254,
+    "va_difference_bins": 0.010281410585951
+  },
+  "measured_features": {
+    "frames": 100,
+    "valid_peaks": 100,
+    "total_counts": {
+      "mean": 1753.64,
+      "std": 39.03780089848683,
+      "min": 1671.0,
+      "max": 1880.0
+    },
+    "csum": {
+      "mean": 1639.57,
+      "std": 38.68005384764305,
+      "min": 1552.0,
+      "max": 1726.0
+    },
+    "ctd": {
+      "mean": 58.4212656188812,
+      "std": 0.15349222687750025,
+      "min": 58.026171637248936,
+      "max": 58.77336591325596
+    },
+    "va": {
+      "mean": 3.7479134610914513,
+      "std": 0.09726567963636516,
+      "min": 3.4898645579614294,
+      "max": 3.9885275796961337
+    },
+    "snr": {
+      "mean": 40.488811805664206,
+      "std": 0.4779148369956473,
+      "min": 39.39543120718442,
+      "max": 41.54515615568197
+    }
+  },
+  "simulated_features": {
+    "frames": 100,
+    "valid_peaks": 100,
+    "total_counts": {
+      "mean": 1756.13,
+      "std": 46.53567220830476,
+      "min": 1637.0,
+      "max": 1854.0
+    },
+    "csum": {
+      "mean": 1641.05,
+      "std": 46.4471840813941,
+      "min": 1531.0,
+      "max": 1747.0
+    },
+    "ctd": {
+      "mean": 58.39879227017416,
+      "std": 0.1257534449526435,
+      "min": 58.08553459119497,
+      "max": 58.689164086687306
+    },
+    "va": {
+      "mean": 3.7587468164347575,
+      "std": 0.09751060501904,
+      "min": 3.5228645002848475,
+      "max": 3.9897014606360957
+    },
+    "snr": {
+      "mean": 40.50585754348954,
+      "std": 0.573404388242874,
+      "min": 39.12799509302771,
+      "max": 41.79712908801273
+    }
+  }
+}

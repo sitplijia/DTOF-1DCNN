@@ -1,0 +1,51 @@
+{
+  "rows_per_dataset": 100,
+  "row_indices": [
+    0,
+    99
+  ],
+  "num_cycles": 40000,
+  "dead_bins": 120,
+  "min_available": 0.02,
+  "histogram_bins": 2048,
+  "normalization": "invert each histogram; average per bin; divide mean spectrum by its full-spectrum sum",
+  "alignment": "original bin positions; no peak alignment, smoothing or background subtraction",
+  "comparison_window": [
+    44,
+    74
+  ],
+  "datasets": {
+    "88%": {
+      "source_csv": "D:\\projects\\DTOF+1DCNN\\数据\\无背景光\\31_spad1_event40000_lux0_88%_hist_dspfulldata.csv",
+      "mean_incident_photons_per_cycle": 0.9378026822399336,
+      "mean_incident_photons_per_histogram": 37512.10728959734,
+      "std_incident_photons_per_histogram": 245.88741298839736,
+      "mean_measured_counts": 24496.940000000002,
+      "min_available_probability": 0.3894249999999998,
+      "all_inverted_bins_valid": true
+    },
+    "3%": {
+      "source_csv": "D:\\projects\\DTOF+1DCNN\\数据\\无背景光\\31_spad1_event40000_lux0_3%_hist_dspfulldata.csv",
+      "mean_incident_photons_per_cycle": 0.04474751975318195,
+      "mean_incident_photons_per_histogram": 1789.9007901272778,
+      "std_incident_photons_per_histogram": 40.66599213371011,
+      "mean_measured_counts": 1753.6399999999999,
+      "min_available_probability": 0.955525,
+      "all_inverted_bins_valid": true
+    }
+  },
+  "metric_definition": "先对各自平均谱按全谱总数归一化为p、q。TV = 0.5 × sum(abs(p - q))，范围0到1；一阶Wasserstein距离W1 = sum(abs(cumsum(p - q)[:-1]))，bin间距为1，单位bin，将各bin质量置于bin中心。两项均使用全部bin，不裁剪尾部或对齐峰位。质心和完整va在同一个主峰窗口内计算，不额外扣背景；复用基线compute_ctd_va，bin i覆盖[i-0.5, i+0.5)，va包含质心所在bin的部分积分，绝非方差。两项差值均取绝对值，单位bin。四项均越小表示越接近；它们描述谱形差异，不衡量绝对光子总数差异。主峰窗口内无有效光子或全谱总量为0时直接报错。",
+  "incident_total_ratio_88_over_3": 20.957646086591144,
+  "normalized_measured": {
+    "total_variation_distance": 0.132541271682773,
+    "wasserstein_distance_bins": 19.61034116905721,
+    "centroid_difference_bins": 1.2229813679716415,
+    "va_difference_bins": 0.22431616602420945
+  },
+  "normalized_incident": {
+    "total_variation_distance": 0.04239188678682451,
+    "wasserstein_distance_bins": 19.40575006985593,
+    "centroid_difference_bins": 0.06505603185958364,
+    "va_difference_bins": 0.028057591705689333
+  }
+}

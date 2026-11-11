@@ -1,0 +1,45 @@
+{
+  "nominal_centroid_bin": 512.0,
+  "actual_signal_centroid_bin": 512.0000000000001,
+  "retained_fraction_before_normalization": 1.0,
+  "template_clipped": false,
+  "edge_rule": "zero-padded shift; clip to observation window; renormalize retained signal to sum=1; signal_lambda refers to signal inside observation window",
+  "ideal_signal_ctd_bin": 512.0,
+  "ideal_signal_va_bin": 3.783841708690595,
+  "histogram_shape": [
+    6,
+    10,
+    100,
+    2048
+  ],
+  "histogram_axes": [
+    "background_lambda",
+    "signal_lambda",
+    "frame",
+    "bin"
+  ],
+  "feature_axes": [
+    "background_lambda",
+    "signal_lambda",
+    "frame"
+  ],
+  "input_formula": "lambda[y,x,i] = signal_lambda[x] * signal_template[i] + background_lambda[y]",
+  "signal_definition": "total mean incident signal photons per cycle across observation window; coefficient of unit-area signal_template",
+  "background_definition": "mean incident photons per bin per cycle, directly added to forward-model lambda; not a total count",
+  "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
+  "feature_definition": "interior: existing baseline; boundary: clip the 30-bin peak window to observation window; subtract estimated background and truncate negatives; full partial-bin va; SNR threshold applies",
+  "sa_avg_definition": "observed background estimate from existing baseline: first count value to occur four times while scanning bins 1..512 in zero-based baseline coordinates; units=detected counts/bin per histogram; not background_lambda or num_cycles*background_lambda",
+  "feature_names": [
+    "ctd",
+    "va",
+    "csum",
+    "snr",
+    "sa_avg"
+  ],
+  "invalid_samples": "all frames retained; invalid features=NaN in NPZ, empty CSV fields; low_snr and analysis_error marked; conditional means report finite counts",
+  "coordinate_system": "1-based bin centers for target, actual signal centroid, ctd and bin_indices; va unchanged; physical distance requires calibration",
+  "num_cycles": 5000,
+  "dead_bins": 120,
+  "snr_threshold": 8,
+  "seed": 20261111
+}
