@@ -88,10 +88,13 @@ def describe(values: list[float]) -> dict:
     }
 
 
-def feature_rows(histograms: np.ndarray, source: str, threshold: float) -> list[dict]:
+def feature_rows(
+    histograms: np.ndarray, source: str, threshold: float, csum_threshold: float = 10.0
+) -> list[dict]:
     rows = []
     for index, histogram in enumerate(histograms):
-        s = analyze_histogram(histogram, snr_threshold=threshold)
+        s = analyze_histogram(
+            histogram, snr_threshold=threshold, csum_threshold=csum_threshold)
         rows.append({
             "source": source, "frame_index": index, "total_counts": float(histogram.sum()),
             "peak_bin": s.peak_bin, "peak_valid": s.peak_valid,
@@ -198,8 +201,9 @@ def run(args: argparse.Namespace) -> dict:
         float(np.max(np.abs(forward_expected_counts(lam, args.cycles, args.dead_bins) - h)))
         for lam, h in zip(lambdas, measured)
     )
-    real_rows = feature_rows(measured, "measured", args.snr_threshold)
-    sim_rows = feature_rows(simulated, "simulation", args.snr_threshold)
+    csum_threshold = getattr(args, "csum_threshold", 10.0)
+    real_rows = feature_rows(measured, "measured", args.snr_threshold, csum_threshold)
+    sim_rows = feature_rows(simulated, "simulation", args.snr_threshold, csum_threshold)
     for row in real_rows:
         i = row["frame_index"]
         row["incident_photons_per_cycle"] = float(lambdas[i].sum())
@@ -223,7 +227,8 @@ def run(args: argparse.Namespace) -> dict:
         "measured_frames": args.rows, "simulated_frames": args.sim_frames,
         "num_cycles": args.cycles, "dead_bins": args.dead_bins,
         "min_available": args.min_available, "seed": args.seed,
-        "snr_threshold": args.snr_threshold, "histogram_bins": measured.shape[1],
+        "snr_threshold": args.snr_threshold, "csum_threshold": csum_threshold,
+        "histogram_bins": measured.shape[1],
         "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
         "comparison_type": "same-data inverse/forward consistency; not independent validation",
         "comparison_metrics": ["TV", "Wasserstein W1", "absolute centroid difference", "absolute complete-va difference"],
@@ -292,7 +297,7 @@ def run(args: argparse.Namespace) -> dict:
             return "无有效值" if value is None else f"{value:.9f}"
         lines.append(f"| {key} | {fmt(real['mean'])} | {fmt(real['std'])} | {fmt(sim['mean'])} | {fmt(sim['std'])} |")
     lines += [
-        "", f"有效峰：实测{summary['measured_features']['valid_peaks']}/{args.rows}，仿真{summary['simulated_features']['valid_peaks']}/{args.sim_frames}，SNR门限{args.snr_threshold:g}。", "",
+        "", f"有效峰：实测{summary['measured_features']['valid_peaks']}/{args.rows}，仿真{summary['simulated_features']['valid_peaks']}/{args.sim_frames}，判据csum>{summary['csum_threshold']:g}且SNR≥{args.snr_threshold:g}。", "",
         "## 平均直方图的四项对比指标", "",
         METRIC_DEFINITION, "",
         f"共同主峰窗口为`[{lo}, {hi})`，由实测平均谱峰值确定；实测、随机仿真、确定性前向均使用同一窗口。", "",
@@ -323,6 +328,7 @@ def main() -> None:
     parser.add_argument("--sim-frames", type=int, default=100)
     parser.add_argument("--seed", type=int, default=20261110)
     parser.add_argument("--snr-threshold", type=float, default=8.0)
+    parser.add_argument("--csum-threshold", type=float, default=10.0)
     parser.add_argument("--output", type=Path, help="结果目录；不同数据集默认使用独立目录")
     display = parser.add_mutually_exclusive_group()
     display.add_argument("--show", dest="show", action="store_true")

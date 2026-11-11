@@ -1,12 +1,12 @@
 # 完整基线
 
-本文件定义当前项目的完整基线，入口为[load_histogram.py](load_histogram.py)。输入一条原始直方图，执行全局最大候选峰定位、30-bin取窗、背景估计、扣背景及负值置0，再以SNR阈值判断峰有效性。有效峰输出`ctd`和完整`va`；无有效峰时二者为`None`，保留`csum`、`snr`等诊断信息。默认SNR阈值为8，可配置；全局最大候选峰不合格时不再查找其他峰。
+本文件定义当前项目的完整基线，入口为[load_histogram.py](load_histogram.py)。输入一条原始直方图，执行全局最大候选峰定位、30-bin取窗、峰后背景均值估计、扣背景及负值置0，再同时检查csum和SNR门限。只有`csum > 10`且`snr >= 8`时才输出`ctd`和完整`va`；否则二者为`None`，保留`csum`、`snr`等诊断信息。两个阈值均可配置；全局最大候选峰不合格时不再查找其他峰。
 
 默认读取`数据/有背景光/31_spad1_event40000_lux5000_3%_hist_dspfulldata.csv`的第1条记录。每条记录按数字顺序提取`hist0`至`hist2047`；其余字段作为原始元数据保留。
 
 ## 1 输入与输出
 
-令原始计数为$H_i$，索引从0开始。背景规则要求数据包含bin 512，因此至少需要513个bin。原始计数必须有限且非负。
+令原始计数为$H_i$，索引从0开始。原始计数必须有限且非负。质心主窗口要求峰值两侧至少各有15个bin；sa_avg窗口在直方图末尾可截短。
 
 | 输出 | 定义 |
 | --- | --- |
@@ -19,7 +19,8 @@
 | `va` | 有效峰包含部分bin计数的完整va，单位bin；无有效峰时为`None` |
 | `snr` | $csum/\sqrt{csum+30\,sa\_avg}$，线性比值 |
 | `snr_threshold` | 有效峰SNR下限，默认8 |
-| `peak_valid` | 有净信号且`snr >= snr_threshold`时为`True`，否则为`False` |
+| `csum_threshold` | 有效峰csum严格下限，默认10 |
+| `peak_valid` | `csum > csum_threshold`且`snr >= snr_threshold`时为`True`，否则为`False` |
 
 `background_start`和`background_stop`记录sa_avg均值窗口的左闭右开边界。窗口碰到直方图末尾时使用剩余bin；没有可用bin时二者均为-1且sa_avg设为0。
 
@@ -32,7 +33,7 @@ p=\min\operatorname*{arg\,max}_i H_i,\qquad
 a=p-15,\quad b=p+15,\quad L=b-a=30.
 $$
 
-窗口为$W=[a,b)$，包含峰前15个、峰值1个、峰后14个bin。峰值过于靠近边界时提示无法取得完整窗口，不静默缩短统计长度。这里先得到候选位置，是否为有效峰由第2.8节的SNR判断决定。
+窗口为$W=[a,b)$，包含峰前15个、峰值1个、峰后14个bin。峰值过于靠近边界时提示无法取得完整窗口，不静默缩短统计长度。这里先得到候选位置，是否为有效峰由第2.8节的csum和SNR双门限判断决定。
 
 ### 2.2 背景基底sa_avg
 
@@ -64,7 +65,7 @@ $$
 
 ### 2.5 质心ctd
 
-仅在SNR门限通过且净信号为正时计算ctd和va。程序以bin编号作为中心坐标，bin $i$覆盖$[i-0.5,i+0.5)$，因此
+仅在csum和SNR门限都通过时计算ctd和va。程序以bin编号作为中心坐标，bin $i$覆盖$[i-0.5,i+0.5)$，因此
 
 $$
 \boxed{ctd=\frac{\sum_{i=a}^{b-1}i\,q_i}{csum}}.
@@ -110,19 +111,19 @@ $$
 
 本式在非饱和、近似独立Poisson计数且暂不计背景估计误差时具有计数信噪比含义。当前背景选择及逐bin截零使其作为近似质量指标使用。它与CSV中原始`SNR`字段分别记录；存在饱和时也按本定义输出数值，但不将其解释为已校准的定位不确定度。
 
-### 2.8 SNR门限与无有效峰
+### 2.8 csum与SNR双门限及无有效峰
 
-默认阈值$T=8$，有效性定义为
+默认csum下限$C=10$、SNR下限$T=8$，有效性定义为
 
 $$
-peak\_valid=(csum>0)\ \land\ (snr\ge T).
+peak\_valid=(csum>C)\ \land\ (snr\ge T).
 $$
 
-阈值采用大于或等于判断。只检验第2.1节的全局最大候选峰，不合格时返回`peak_valid=False`，`ctd=None`、`va=None`，不退回其他候选峰。`peak_bin`、窗口边界、csum和snr继续返回用于诊断，下游应先判断`peak_valid`。
+csum采用严格大于判断，SNR采用大于或等于判断。只检验第2.1节的全局最大候选峰，任一门限不合格时返回`peak_valid=False`，`ctd=None`、`va=None`，不退回其他候选峰。`peak_bin`、窗口边界、csum和snr继续返回用于诊断，下游应先判断`peak_valid`。
 
-8是当前数据下的可调工程初始值，不等于统计学上的8-sigma显著性，也不保证零虚警。用主峰之后的片段做探索检查时，3%和88%的可用片段最高SNR约为6.00和7.21，但3m的同类片段可达到57.69，不能认定这些片段都是纯背景。因此当前检查不能给出可靠的假峰率；正式阈值应由独立的无目标背景测量和允许的虚警率标定。按虚警概率选择背景相关阈值的研究可参考[Adaptive single photon detection under fluctuating background noise](https://doi.org/10.1364/OE.404681)。
+csum下限10及SNR下限8是当前可调工程门限，不保证零虚警。用主峰之后的片段做探索检查时，3%和88%的可用片段最高SNR约为6.00和7.21，但3m的同类片段可达到57.69，不能认定这些片段都是纯背景。因此当前检查不能给出可靠的假峰率；正式阈值应由独立的无目标背景测量和允许的虚警率标定。按虚警概率选择背景相关阈值的研究可参考[Adaptive single photon detection under fluctuating background noise](https://doi.org/10.1364/OE.404681)。
 
-阈值必须有限且非负。可设置`--snr-threshold 0`停用正阈值筛选，但无净信号的窗口仍无效。
+两个阈值都必须有限且非负。可通过`--csum-threshold`和`--snr-threshold`分别配置。
 
 ### 2.9 实现顺序
 
@@ -135,7 +136,7 @@ q = np.maximum(window - sa_avg, 0.0)
 csum = float(q.sum())
 noise_variance = csum + (b - a) * sa_avg
 snr = csum / np.sqrt(noise_variance) if noise_variance > 0 else 0.0
-peak_valid = csum > 0 and snr >= snr_threshold
+peak_valid = csum > csum_threshold and snr >= snr_threshold
 if peak_valid:
     # 函数内部执行相同的扣背景和截零，再按完整va定义计算。
     ctd, va = compute_ctd_va(window, a, sa_avg)

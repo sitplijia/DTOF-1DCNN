@@ -228,7 +228,8 @@ class HistogramViewer:
             f"全谱探测计数：{int(hist.sum())}\n观测最大bin：{bins[peak_index]}\n"
             f"最大bin计数：{int(hist[peak_index])}\n输入信号质心：{center:.5f} bin\n"
             f"理想信号va：{meta['ideal_signal_va_bin']:.5f} bin\n"
-            f"累计周期：{meta['num_cycles']}\n死时间：{meta['dead_bins']} bin\nSNR门限：{meta['snr_threshold']:g}"
+            f"累计周期：{meta['num_cycles']}\n死时间：{meta['dead_bins']} bin\n"
+            f"csum > {meta['csum_threshold']:g}；SNR ≥ {meta['snr_threshold']:g}"
         )
         if sample["error"]:
             details += "\n\n原因：" + sample["error"]

@@ -13,6 +13,7 @@ import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_SNR_THRESHOLD = 8.0
+DEFAULT_CSUM_THRESHOLD = 10.0
 DEFAULT_CSV = (
     BASE_DIR.parent
     / "数据"
@@ -37,6 +38,7 @@ class HistogramStats:
     va: float | None
     snr: float
     snr_threshold: float
+    csum_threshold: float
     peak_valid: bool
 
 
@@ -152,9 +154,11 @@ def estimate_sa_avg(histogram: np.ndarray, peak_bin: int | None = None) -> tuple
 
 
 def analyze_histogram(
-    histogram: np.ndarray, snr_threshold: float = DEFAULT_SNR_THRESHOLD
+    histogram: np.ndarray,
+    snr_threshold: float = DEFAULT_SNR_THRESHOLD,
+    csum_threshold: float = DEFAULT_CSUM_THRESHOLD,
 ) -> HistogramStats:
-    """只检验全局最大候选峰，SNR通过阈值后才计算ctd和完整va。
+    """只检验全局最大候选峰，csum与SNR均达标后才计算ctd和完整va。
 
     30-bin窗口为[peak_bin-15, peak_bin+15)，包含峰值bin；
     如有多个相同最大值，选择编号最小的bin。不合格时peak_valid=False，
@@ -162,6 +166,8 @@ def analyze_histogram(
     """
     if not np.isfinite(snr_threshold) or snr_threshold < 0:
         raise ValueError("SNR阈值必须是有限的非负数")
+    if not np.isfinite(csum_threshold) or csum_threshold < 0:
+        raise ValueError("csum阈值必须是有限的非负数")
     histogram = np.asarray(histogram, dtype=np.float64)
     if histogram.ndim != 1 or histogram.size < 30:
         raise ValueError("直方图必须是一维数组且至少包含30个bin")
@@ -182,7 +188,7 @@ def analyze_histogram(
     # 非饱和Poisson近似，暂不计背景估计误差。无净信号时SNR记为0。
     noise_variance = csum + window.size * sa_avg
     snr = float(csum / np.sqrt(noise_variance)) if noise_variance > 0 else 0.0
-    peak_valid = csum > 0 and snr >= snr_threshold
+    peak_valid = csum > csum_threshold and snr >= snr_threshold
     if peak_valid:
         ctd, va = compute_ctd_va(window, signal_start, sa_avg)
     else:
@@ -201,6 +207,7 @@ def analyze_histogram(
         va=va,
         snr=snr,
         snr_threshold=float(snr_threshold),
+        csum_threshold=float(csum_threshold),
         peak_valid=peak_valid,
     )
 
@@ -316,6 +323,10 @@ def main() -> None:
         "--snr-threshold", type=nonnegative_float, default=DEFAULT_SNR_THRESHOLD,
         help=f"有效峰SNR下限，默认{DEFAULT_SNR_THRESHOLD:g}；不合格时不再寻找其他峰",
     )
+    parser.add_argument(
+        "--csum-threshold", type=nonnegative_float, default=DEFAULT_CSUM_THRESHOLD,
+        help=f"有效峰csum严格下限，默认{DEFAULT_CSUM_THRESHOLD:g}",
+    )
     display = parser.add_mutually_exclusive_group()
     display.add_argument("--show", dest="show", action="store_true", help="保存图片后显示直方图（默认）")
     display.add_argument("--no-show", dest="show", action="store_false", help="只保存图片，不显示绘图窗口")
@@ -326,7 +337,10 @@ def main() -> None:
 
     try:
         histogram, metadata = load_histogram(source, args.row)
-        stats = analyze_histogram(histogram, snr_threshold=args.snr_threshold)
+        stats = analyze_histogram(
+            histogram, snr_threshold=args.snr_threshold,
+            csum_threshold=args.csum_threshold,
+        )
     except (OSError, ValueError, IndexError) as exc:
         parser.exit(1, f"加载或统计失败：{exc}\n")
 
@@ -346,7 +360,7 @@ def main() -> None:
         print("峰后没有可用的sa_avg估计bin，sa_avg设为0")
     print(f"sa_avg：{stats.sa_avg:.9f}（计数/bin）")
     print(f"snr：{stats.snr:.9g}（csum / sqrt(csum + 窗口长度 × sa_avg)）")
-    print(f"SNR阈值：{stats.snr_threshold:g}，有效峰：{'是' if stats.peak_valid else '否'}")
+    print(f"判定条件：csum > {stats.csum_threshold:g} 且 snr >= {stats.snr_threshold:g}，有效峰：{'是' if stats.peak_valid else '否'}")
     if stats.peak_valid:
         print(f"ctd：{stats.ctd:.9f} bin（bin编号作为中心坐标，扣背景后负值置0）")
         print(f"va：{stats.va:.9f} bin（包含质心所在bin的部分计数）")
