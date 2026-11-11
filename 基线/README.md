@@ -13,8 +13,7 @@
 | `peak_bin` | 全谱最大候选峰的bin编号，相同最大值取编号最小者；不合格时仅供诊断 |
 | `peak_count` | 峰值bin的原始计数 |
 | `signal_start`、`signal_stop` | 30-bin窗口的左闭右开边界 |
-| `sa_avg` | bin 1至512中首个累计出现4次的计数值 |
-| `background_match_bin` | 所选计数值第4次出现的bin编号 |
+| `sa_avg` | 全局峰后跳过160个bin，再取接下来的100个bin计数均值 |
 | `csum` | 窗口内逐bin扣背景、负值置0后的总计数 |
 | `ctd` | 有效峰以非负计数加权得到的质心，单位bin；无有效峰时为`None` |
 | `va` | 有效峰包含部分bin计数的完整va，单位bin；无有效峰时为`None` |
@@ -22,7 +21,7 @@
 | `snr_threshold` | 有效峰SNR下限，默认8 |
 | `peak_valid` | 有净信号且`snr >= snr_threshold`时为`True`，否则为`False` |
 
-`background_start=1`、`background_stop=513`记录背景检索区间的左闭右开边界，不表示对整个区间取平均。
+`background_start`和`background_stop`记录sa_avg均值窗口的左闭右开边界。窗口碰到直方图末尾时使用剩余bin；没有可用bin时二者均为-1且sa_avg设为0。
 
 ## 2 完整计算流程
 
@@ -37,9 +36,13 @@ $$
 
 ### 2.2 背景基底sa_avg
 
-按bin 1到512的顺序扫描`histogram[1:513]`。每遇到一个计数值，就将该值的累计出现次数加1；首个累计出现4次的值直接作为$\beta=sa\_avg$，0也参与统计，不要求连续出现。
+令全局峰bin为$p$。背景估计窗口从$p+160$开始，取100个bin：
 
-例如依次遇到`[7, 2, 2, 2, 2, 7, 7, 7]`，计数值2在第5步累计出现4次，返回2。该规则按达到4次的先后决定返回值，不取最终众数，也不按计数值从小到大选择。字段名沿用`sa_avg`，当前定义不计算算术平均。
+$$
+\mathcal{B}=[p+160,p+260),\qquad sa\_avg=\frac{1}{|\mathcal{B}|}\sum_{i\in\mathcal{B}}H_i.
+$$
+
+若窗口超出直方图末尾，则对剩余可用bin取均值；若没有可用bin，设`sa_avg=0`。这里的160和100均相对于全局峰bin，bin索引从0开始。`sa_avg`是计数/bin，不是算术以外的众数估计，也不等同于输入的`background_lambda`。
 
 ### 2.3 扣背景并将负值置0
 
@@ -126,7 +129,7 @@ $$
 ```python
 peak_bin = int(np.argmax(histogram))
 a, b = peak_bin - 15, peak_bin + 15
-sa_avg, background_match_bin = estimate_sa_avg(histogram)
+sa_avg, background_start, background_stop = estimate_sa_avg(histogram, peak_bin)
 window = histogram[a:b]
 q = np.maximum(window - sa_avg, 0.0)
 csum = float(q.sum())
@@ -154,7 +157,7 @@ conda run -n py310 python -X utf8 "基线/load_histogram.py"
 
 上图展示全谱，下图展示峰值附近，两幅图的纵轴均使用普通线性刻度。横轴是CSV列对应的bin编号，尚未换算为时间或距离。
 
-区间采用左闭右开的表示方式。峰值附近不足完整30个bin、输入不包含bin 512，或搜索区间内不存在出现至少4次的计数值时，程序会提示无法计算。图中橙色区域表示候选统计窗口，绿色区域表示`sa_avg`的搜索范围，绿色虚线表示`sa_avg`。有效峰为红点并显示紫色ctd线；无有效峰时使用灰色候选点，标题显示`No valid peak`，不绘制ctd线。绘图仍展示原始计数。
+区间采用左闭右开的表示方式。峰值附近不足完整30个bin时提示无法计算。图中橙色区域表示候选统计窗口，绿色区域表示`sa_avg`均值窗口，绿色虚线表示`sa_avg`。有效峰为红点并显示紫色ctd线；无有效峰时使用灰色候选点，标题显示`No valid peak`，不绘制ctd线。绘图仍展示原始计数。
 
 指定其他记录、数据文件或仅保存图片：
 

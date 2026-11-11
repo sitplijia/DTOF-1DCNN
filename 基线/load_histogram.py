@@ -32,7 +32,6 @@ class HistogramStats:
     csum: float
     background_start: int
     background_stop: int
-    background_match_bin: int
     sa_avg: float
     ctd: float | None
     va: float | None
@@ -129,24 +128,27 @@ def compute_ctd_va(
     return ctd, left_moment / left_mass
 
 
-def estimate_sa_avg(histogram: np.ndarray) -> tuple[float, int]:
-    """扫描bin 1至512，返回首个累计出现4次的计数值及其第4次出现位置。
+def estimate_sa_avg(histogram: np.ndarray, peak_bin: int | None = None) -> tuple[float, int, int]:
+    """取全局峰后跳过160 bin的后续100 bin均值，返回均值与左闭右开范围。
 
-    计数值0参与统计；按bin顺序判断，不按计数值大小或最终频次排序。
+    直方图末尾不足100 bin时使用剩余bin；无可用bin时返回(0, -1, -1)。
     """
     histogram = np.asarray(histogram, dtype=np.float64)
-    if histogram.ndim != 1 or histogram.size < 513:
-        raise ValueError("估计sa_avg需要包含bin 1至512，即至少513个bin（含bin 0）")
-    search = histogram[1:513]
-    if not np.all(np.isfinite(search)) or np.any(search < 0):
-        raise ValueError("背景搜索区间必须包含有限的非负计数")
-    occurrences: dict[float, int] = {}
-    for bin_index, value in enumerate(search, start=1):
-        count = float(value)
-        occurrences[count] = occurrences.get(count, 0) + 1
-        if occurrences[count] == 4:
-            return count, bin_index
-    raise ValueError("bin 1至512内没有累计出现4次及以上的计数值，无法估计sa_avg")
+    if histogram.ndim != 1:
+        raise ValueError("估计sa_avg需要一维直方图")
+    if not np.all(np.isfinite(histogram)) or np.any(histogram < 0):
+        raise ValueError("背景估计区间必须包含有限的非负计数")
+    if peak_bin is None:
+        if histogram.size == 0:
+            raise ValueError("估计sa_avg需要非空直方图")
+        peak_bin = int(np.argmax(histogram))
+    if not 0 <= peak_bin < histogram.size:
+        raise ValueError("peak_bin超出直方图范围")
+    start = peak_bin + 160
+    if start >= histogram.size:
+        return 0.0, -1, -1
+    stop = min(start + 100, histogram.size)
+    return float(histogram[start:stop].mean()), start, stop
 
 
 def analyze_histogram(
@@ -173,8 +175,7 @@ def analyze_histogram(
     signal_stop = peak_bin + 15
     if signal_start < 0 or signal_stop > histogram.size:
         raise ValueError("峰值过于靠近数据边界，无法取得指定的完整30-bin窗口")
-    background_start, background_stop = 1, 513
-    sa_avg, background_match_bin = estimate_sa_avg(histogram)
+    sa_avg, background_start, background_stop = estimate_sa_avg(histogram, peak_bin)
     window = histogram[signal_start:signal_stop]
     signal_counts = np.maximum(window - sa_avg, 0.0)
     csum = float(signal_counts.sum())
@@ -195,7 +196,6 @@ def analyze_histogram(
         csum=csum,
         background_start=background_start,
         background_stop=background_stop,
-        background_match_bin=background_match_bin,
         sa_avg=sa_avg,
         ctd=ctd,
         va=va,
@@ -236,10 +236,11 @@ def plot_histogram(
         stats.signal_start - 0.5, stats.signal_stop - 0.5,
         color="tab:orange", alpha=0.2, label="30-bin csum window",
     )
-    axes[0].axvspan(
-        stats.background_start - 0.5, stats.background_stop - 0.5,
-        color="tab:green", alpha=0.12, label="sa_avg search: bins 1-512",
-    )
+    if stats.background_start >= 0:
+        axes[0].axvspan(
+            stats.background_start - 0.5, stats.background_stop - 0.5,
+            color="tab:green", alpha=0.12, label="sa_avg window: 160-259 bins after peak",
+        )
     peak_color = "tab:red" if stats.peak_valid else "gray"
     axes[0].scatter([peak_bin], [stats.peak_count], color=peak_color, s=20, zorder=3)
     if stats.ctd is not None:
@@ -336,10 +337,13 @@ def main() -> None:
     print(f"全局最大候选bin：{stats.peak_bin}，峰值计数：{stats.peak_count:g}")
     print(f"csum窗口：[{stats.signal_start}, {stats.signal_stop})，共30个bin")
     print(f"csum：{stats.csum:g}（逐bin扣背景、负值置0后求和）")
-    print(
-        f"背景搜索区间：bin {stats.background_start}至{stats.background_stop - 1}，"
-        f"计数值{stats.sa_avg:g}在bin {stats.background_match_bin}首次累计出现4次"
-    )
+    if stats.background_start >= 0:
+        print(
+            f"sa_avg均值区间：bin {stats.background_start}至{stats.background_stop - 1}"
+            f"（{stats.background_stop - stats.background_start}个bin）"
+        )
+    else:
+        print("峰后没有可用的sa_avg估计bin，sa_avg设为0")
     print(f"sa_avg：{stats.sa_avg:.9f}（计数/bin）")
     print(f"snr：{stats.snr:.9g}（csum / sqrt(csum + 窗口长度 × sa_avg)）")
     print(f"SNR阈值：{stats.snr_threshold:g}，有效峰：{'是' if stats.peak_valid else '否'}")

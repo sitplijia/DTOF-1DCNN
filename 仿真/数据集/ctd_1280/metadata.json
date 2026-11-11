@@ -28,7 +28,7 @@
   "background_definition": "mean incident photons per bin per cycle, directly added to forward-model lambda; not a total count",
   "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
   "feature_definition": "interior: existing baseline; boundary: clip the 30-bin peak window to observation window; subtract estimated background and truncate negatives; full partial-bin va; SNR threshold applies",
-  "sa_avg_definition": "observed background estimate from existing baseline: first count value to occur four times while scanning bins 1..512 in zero-based baseline coordinates; units=detected counts/bin per histogram; not background_lambda or num_cycles*background_lambda",
+  "sa_avg_definition": "mean detected counts in 100 bins starting 160 bins after the global peak; if the histogram ends early, average available bins; if none, sa_avg=0; units=counts/bin per histogram",
   "feature_names": [
     "ctd",
     "va",

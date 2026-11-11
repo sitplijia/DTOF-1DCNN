@@ -59,7 +59,7 @@ sum(q) = 1
 
 `histograms`形状为 **`(6, 10, 100, 2048)`**，顺序为`[背景索引y, 信号索引x, 帧k, bin索引i]`。`ctd`、`va`、`csum`、`snr`、`sa_avg`及有效性字段形状均为`(6, 10, 100)`。`lambda_input`和确定性前向期望`expected_histograms`形状为`(6, 10, 2048)`。随机直方图是整数计数。
 
-`sa_avg`采用原基线的背景估计：扫描原始0起始bin 1至512，取首个累计出现4次的计数值，单位为每条直方图的**探测计数/bin**。它是从随机探测谱估计的背景，不是输入`background_lambda`，也不直接设为`5000 * background_lambda`。低SNR记录仍保留能够计算的sa_avg；无法分析的记录为NaN。`grid_summary.csv`保存`sa_avg_mean`和`sa_avg_finite_frames`，`grid_summary.png`展示对应均值网格。
+`sa_avg`为全局峰bin后跳过160个bin，再取接下来的100个bin计数均值，单位为每条直方图的**探测计数/bin**。若窗口碰到直方图末尾，对剩余可用bin取均值；若没有可用bin则设为0。它是从随机探测谱估计的背景，不是输入`background_lambda`，也不直接设为`5000 * background_lambda`。低SNR记录仍保留能够计算的sa_avg；无法分析的记录为NaN。`grid_summary.csv`保存`sa_avg_mean`和`sa_avg_finite_frames`，`grid_summary.png`展示对应均值网格。
 
 ```python
 from pathlib import Path

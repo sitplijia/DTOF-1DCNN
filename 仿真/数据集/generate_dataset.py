@@ -117,7 +117,7 @@ def extract_features(histograms: np.ndarray, threshold: float) -> dict:
                 if histogram.max() <= 0:
                     raise ValueError("直方图全为0，无有效回波")
                 lo, hi = max(0, peak - 15), min(bins, peak + 15)
-                background, _ = estimate_sa_avg(histogram)
+                background, _, _ = estimate_sa_avg(histogram, peak)
                 window = histogram[lo:hi]
                 csum = float(np.maximum(window - background, 0.).sum())
                 variance = csum + window.size * background
@@ -265,7 +265,7 @@ def run(config: dict, output: Path, overwrite: bool = False) -> dict:
             "background_definition": "mean incident photons per bin per cycle, directly added to forward-model lambda; not a total count",
             "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
             "feature_definition": "interior: existing baseline; boundary: clip the 30-bin peak window to observation window; subtract estimated background and truncate negatives; full partial-bin va; SNR threshold applies",
-            "sa_avg_definition": "observed background estimate from existing baseline: first count value to occur four times while scanning bins 1..512 in zero-based baseline coordinates; units=detected counts/bin per histogram; not background_lambda or num_cycles*background_lambda",
+            "sa_avg_definition": "mean detected counts in 100 bins starting 160 bins after the global peak; if the histogram ends early, average available bins; if none, sa_avg=0; units=counts/bin per histogram",
             "feature_names": list(FEATURES),
             "invalid_samples": "all frames retained; invalid features=NaN in NPZ, empty CSV fields; low_snr and analysis_error marked; conditional means report finite counts",
             "coordinate_system": "1-based bin centers for target, actual signal centroid, ctd and bin_indices; va unchanged; physical distance requires calibration",
