@@ -40,8 +40,6 @@ def validate_config(config: dict) -> None:
             raise ValueError(f"{name}必须为大于或等于{minimum}的整数")
     if not np.isfinite(config["snr_threshold"]) or config["snr_threshold"] < 0:
         raise ValueError("snr_threshold必须为有限非负数")
-    if not np.isfinite(config["csum_threshold"]) or config["csum_threshold"] < 0:
-        raise ValueError("csum_threshold必须为有限非负数")
     if not np.isfinite(config["template_min_available"]) or not 0 < config["template_min_available"] <= 1:
         raise ValueError("template_min_available必须在(0,1]内")
 
@@ -98,8 +96,8 @@ def cell_seed(seed: int, centroid: float, signal: float, background: float) -> i
     return int.from_bytes(hashlib.blake2b(key.encode("ascii"), digest_size=8).digest(), "little")
 
 
-def extract_features(histograms: np.ndarray, threshold: float, csum_threshold: float = 20.0) -> dict:
-    """内区复用基线；边缘裁窗；csum与SNR任一不达标时不伪造ctd/va。"""
+def extract_features(histograms: np.ndarray, threshold: float) -> dict:
+    """内区复用基线；边缘裁窗；csum或SNR不达标时不伪造ctd/va。"""
     count, bins = histograms.shape
     features = {key: np.full(count, np.nan) for key in FEATURES}
     features.update(peak_valid=np.zeros(count, dtype=bool),
@@ -113,19 +111,19 @@ def extract_features(histograms: np.ndarray, threshold: float, csum_threshold: f
         try:
             if not edge:
                 stats = analyze_histogram(
-                    histogram, snr_threshold=threshold, csum_threshold=csum_threshold)
+                    histogram, snr_threshold=threshold)
                 values = {key: getattr(stats, key) for key in FEATURES}
                 valid = stats.peak_valid
             else:
                 if histogram.max() <= 0:
                     raise ValueError("直方图全为0，无有效回波")
                 lo, hi = max(0, peak - 15), min(bins, peak + 15)
-                background, _, _ = estimate_sa_avg(histogram, peak)
+                background, _ = estimate_sa_avg(histogram, peak, lo, hi)
                 window = histogram[lo:hi]
                 csum = float(np.maximum(window - background, 0.).sum())
                 variance = csum + window.size * background
                 snr = float(csum / np.sqrt(variance)) if variance > 0 else 0.
-                valid = csum > csum_threshold and snr >= threshold
+                valid = snr >= threshold
                 ctd, va = compute_ctd_va(window, lo, background) if valid else (None, None)
                 values = dict(ctd=ctd, va=va, csum=csum, snr=snr, sa_avg=background)
         except ValueError as exc:
@@ -137,8 +135,6 @@ def extract_features(histograms: np.ndarray, threshold: float, csum_threshold: f
         features["peak_valid"][k] = valid
         if valid:
             features["status"][k] = "ok"
-        elif values["csum"] <= csum_threshold:
-            features["status"][k] = "low_csum"
         else:
             features["status"][k] = "low_snr"
     return features
@@ -174,7 +170,7 @@ def simulate_grid(pulse: np.ndarray, centroid: float, config: dict) -> tuple[dic
             histograms = simulate_spad_histograms(
                 intensity, config["num_cycles"], config["dead_bins"], frames, seed)
             features = extract_features(
-                histograms, config["snr_threshold"], config["csum_threshold"])
+                histograms, config["snr_threshold"])
             arrays["histograms"][y, x] = histograms
             arrays["lambda_input"][y, x] = intensity
             arrays["expected_histograms"][y, x] = forward_expected_counts(
@@ -273,14 +269,14 @@ def run(config: dict, output: Path, overwrite: bool = False) -> dict:
             "signal_definition": "total mean incident signal photons per cycle across observation window; coefficient of unit-area signal_template",
             "background_definition": "mean incident photons per bin per cycle, directly added to forward-model lambda; not a total count",
             "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
-            "feature_definition": f"interior: existing baseline; boundary: clip the 30-bin peak window; subtract estimated background and truncate negatives; full partial-bin va; peak valid only if csum>{config['csum_threshold']} and snr>={config['snr_threshold']}",
-            "sa_avg_definition": "mean detected counts in 100 bins starting 160 bins after the global peak; if the histogram ends early, average available bins; if none, sa_avg=0; units=counts/bin per histogram",
+            "feature_definition": f"interior: existing baseline; boundary: clip the 30-bin peak window; subtract estimated background and truncate negatives; full partial-bin va; peak valid only if snr>={config['snr_threshold']}",
+            "sa_avg_definition": "mean detected counts in all bins outside the peak window and the following 160 bins; if no bins remain, sa_avg=0; units=counts/bin per histogram",
             "feature_names": list(FEATURES),
             "invalid_samples": "all frames retained; invalid features=NaN in NPZ, empty CSV fields; low_csum, low_snr and analysis_error marked; conditional means report finite counts",
             "coordinate_system": "1-based bin centers for target, actual signal centroid, ctd and bin_indices; va unchanged; physical distance requires calibration",
             "num_cycles": config["num_cycles"], "dead_bins": config["dead_bins"],
             "snr_threshold": config["snr_threshold"],
-            "csum_threshold": config["csum_threshold"], "seed": config["seed"],
+            "seed": config["seed"],
         }
         write_json(directory / "metadata.json", metadata)
         draw_grid(arrays, grid_rows, center, directory)

@@ -27,8 +27,8 @@
   "signal_definition": "total mean incident signal photons per cycle across observation window; coefficient of unit-area signal_template",
   "background_definition": "mean incident photons per bin per cycle, directly added to forward-model lambda; not a total count",
   "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
-  "feature_definition": "interior: existing baseline; boundary: clip the 30-bin peak window; subtract estimated background and truncate negatives; full partial-bin va; peak valid only if csum>20 and snr>=8",
-  "sa_avg_definition": "mean detected counts in 100 bins starting 160 bins after the global peak; if the histogram ends early, average available bins; if none, sa_avg=0; units=counts/bin per histogram",
+  "feature_definition": "interior: existing baseline; boundary: clip the 30-bin peak window; subtract estimated background and truncate negatives; full partial-bin va; peak valid only if snr>=12",
+  "sa_avg_definition": "mean detected counts in all bins outside the peak window and the following 160 bins; if no bins remain, sa_avg=0; units=counts/bin per histogram",
   "feature_names": [
     "ctd",
     "va",
@@ -40,7 +40,6 @@
   "coordinate_system": "1-based bin centers for target, actual signal centroid, ctd and bin_indices; va unchanged; physical distance requires calibration",
   "num_cycles": 5000,
   "dead_bins": 120,
-  "snr_threshold": 8,
-  "csum_threshold": 20,
+  "snr_threshold": 12,
   "seed": 20261111
 }

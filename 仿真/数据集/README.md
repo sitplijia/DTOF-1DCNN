@@ -26,7 +26,7 @@ sum(q) = 1
 | 纵轴background_lambda | 0、0.000001、0.00001、0.0001、0.001、0.005 |
 | 每个组合的随机记录数 | 100 |
 | 每条累计周期数 | 5000 |
-| 有效峰门限 | csum > 20 且 snr >= 8 |
+| Valid peak rule | snr >= 12; no csum threshold |
 
 共7个质心位置，每个位置60个信号/背景组合，共 **42000条直方图**。信号按对数间隔从弱信号到明显饱和；背景最高为每bin每条记录25个期望入射光子。网格汇总另存最大条件触发概率，便于查看饱和程度。已移除质心1和2048的配置及数据目录。
 
@@ -79,7 +79,7 @@ with np.load(path, allow_pickle=False) as data:
     valid = data["peak_valid"][y, x]
 ```
 
-所有100条都保留，低质量记录不被筛掉。主峰采用全局最大峰；内区复用原基线的30-bin窗口、背景估计、扣背景截零和完整va。只有`csum > 20`且`snr >= 8`时`ctd/va`才有效；边界峰的窗口裁剪到观测范围，并标记`window_clipped`。csum门限不合格标记`low_csum`，SNR门限不合格标记`low_snr`；任一门限不合格时`ctd/va`为NaN（CSV中为空），`csum/snr`仍保留。全零谱等无法分析的记录标记`analysis_error`并记录原因。汇总图中的ctd/va均值只基于有效值，CSV同时提供有效数量，不能将其解释为全部100条都有效。
+All frames are retained. ctd/va are valid only when `snr >= 12`; otherwise they are empty with status `low_snr`. csum and SNR remain recorded. Unanalyzable histograms are marked `analysis_error`.
 
 ## 生成与检查
 
