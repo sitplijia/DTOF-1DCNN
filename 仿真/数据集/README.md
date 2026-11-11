@@ -99,3 +99,7 @@ python -X utf8 "仿真/数据集/generate_dataset.py" --config "仿真/数据集
 也可使用`--overwrite`在原目录重建配置中各质心目录内的生成文件；脚本不会自动删除配置之外的质心目录或其他文件。
 
 每个组合的随机种子按基础种子、名义质心、信号lambda、背景lambda派生。调整坐标顺序不会改变同一组合的数据；`cell_seeds`保存实际使用的种子。
+
+## Code modules
+
+`dataset_algorithms.py` encapsulates inverse-template construction, centroid shifting, per-histogram feature extraction and grid simulation. `generate_dataset.py` validates configuration, orchestrates artifact writing and provides the command-line entry point. The SPAD forward/inverse implementation remains in `??/??/spad_hist_inverse.py`.
