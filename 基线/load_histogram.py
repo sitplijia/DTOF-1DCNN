@@ -13,7 +13,7 @@ import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_SNR_THRESHOLD = 8.0
-DEFAULT_CSUM_THRESHOLD = 10.0
+DEFAULT_CSUM_THRESHOLD = 20.0
 DEFAULT_CSV = (
     BASE_DIR.parent
     / "数据"

@@ -32,7 +32,7 @@
   "num_cycles": 5000,
   "dead_bins": 120,
   "snr_threshold": 8,
-  "csum_threshold": 10,
+  "csum_threshold": 20,
   "seed": 20261111,
   "template_csv": "数据/无背景光/31_spad1_event40000_lux0_3%_hist_dspfulldata.csv",
   "template_rows": 100,

@@ -98,7 +98,7 @@ def cell_seed(seed: int, centroid: float, signal: float, background: float) -> i
     return int.from_bytes(hashlib.blake2b(key.encode("ascii"), digest_size=8).digest(), "little")
 
 
-def extract_features(histograms: np.ndarray, threshold: float, csum_threshold: float = 10.0) -> dict:
+def extract_features(histograms: np.ndarray, threshold: float, csum_threshold: float = 20.0) -> dict:
     """内区复用基线；边缘裁窗；csum与SNR任一不达标时不伪造ctd/va。"""
     count, bins = histograms.shape
     features = {key: np.full(count, np.nan) for key in FEATURES}

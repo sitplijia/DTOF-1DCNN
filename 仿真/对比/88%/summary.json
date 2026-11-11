@@ -13,7 +13,7 @@
   "min_available": 0.02,
   "seed": 20261110,
   "snr_threshold": 8.0,
-  "csum_threshold": 10.0,
+  "csum_threshold": 20.0,
   "histogram_bins": 2048,
   "model": "single SPAD; nonparalyzable; reset available each cycle; independent Poisson incident bins",
   "comparison_type": "same-data inverse/forward consistency; not independent validation",

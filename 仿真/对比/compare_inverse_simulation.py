@@ -89,7 +89,7 @@ def describe(values: list[float]) -> dict:
 
 
 def feature_rows(
-    histograms: np.ndarray, source: str, threshold: float, csum_threshold: float = 10.0
+    histograms: np.ndarray, source: str, threshold: float, csum_threshold: float = 20.0
 ) -> list[dict]:
     rows = []
     for index, histogram in enumerate(histograms):
@@ -201,7 +201,7 @@ def run(args: argparse.Namespace) -> dict:
         float(np.max(np.abs(forward_expected_counts(lam, args.cycles, args.dead_bins) - h)))
         for lam, h in zip(lambdas, measured)
     )
-    csum_threshold = getattr(args, "csum_threshold", 10.0)
+    csum_threshold = getattr(args, "csum_threshold", 20.0)
     real_rows = feature_rows(measured, "measured", args.snr_threshold, csum_threshold)
     sim_rows = feature_rows(simulated, "simulation", args.snr_threshold, csum_threshold)
     for row in real_rows:
@@ -328,7 +328,7 @@ def main() -> None:
     parser.add_argument("--sim-frames", type=int, default=100)
     parser.add_argument("--seed", type=int, default=20261110)
     parser.add_argument("--snr-threshold", type=float, default=8.0)
-    parser.add_argument("--csum-threshold", type=float, default=10.0)
+    parser.add_argument("--csum-threshold", type=float, default=20.0)
     parser.add_argument("--output", type=Path, help="结果目录；不同数据集默认使用独立目录")
     display = parser.add_mutually_exclusive_group()
     display.add_argument("--show", dest="show", action="store_true")
