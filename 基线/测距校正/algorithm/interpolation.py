@@ -8,7 +8,7 @@ from .features import mean_valid
 from .models import Measurement, TARGETS
 
 
-def build_calibration_curves(measurements: list[Measurement]) -> list[dict[str, float]]:
+def build_calibration_curves(measurements: list[Measurement], axis: str = "csum") -> list[dict[str, float]]:
     """Build one df/POS calibration knot from SNR-valid frames per target."""
     by_target_pos: dict[tuple[str, float], list[Measurement]] = {}
     for row in measurements:
@@ -23,8 +23,9 @@ def build_calibration_curves(measurements: list[Measurement]) -> list[dict[str, 
         if any(not valid_groups[target] for target in TARGETS):
             continue
         csum = {target: mean_valid(valid_groups[target], "csum") for target in TARGETS}
+        va = {target: mean_valid(valid_groups[target], "va") for target in TARGETS}
         distance = {target: mean_valid(valid_groups[target], "va_distance_mm") for target in TARGETS}
-        if not (csum["3%"] <= csum["88%"] <= csum["3m"]):
+        if axis == "csum" and not (csum["3%"] <= csum["88%"] <= csum["3m"]):
             raise ValueError(
                 f"At POS={pos:g}, mean csum order must be 3% <= 88% <= 3m; "
                 f"got {csum['3%']:g}, {csum['88%']:g}, {csum['3m']:g}"
@@ -33,13 +34,33 @@ def build_calibration_curves(measurements: list[Measurement]) -> list[dict[str, 
         curves.append({
             "pos": pos,
             "cs_3": csum["3%"], "cs_88": csum["88%"], "cs_3m": csum["3m"],
+            "va_3": va["3%"], "va_88": va["88%"], "va_3m": va["3m"],
             "d_3": distance_3, "d_88": distance["88%"], "d_3m": distance["3m"],
             "err_88": distance["88%"] - distance_3,
             "err_3m": distance["3m"] - distance_3,
         })
     if not curves:
         raise ValueError("No POS has SNR-valid samples for all three targets")
+    if axis == "va":
+        for curve in curves:
+            validate_va_knots(curve)
     return curves
+
+
+def validate_va_knots(curve: dict[str, float]) -> None:
+    values = np.array([curve["va_3"], curve["va_88"], curve["va_3m"]])
+    gaps = np.diff(np.sort(values))
+    if not np.all(np.isfinite(values)) or np.any(gaps <= 1e-6):
+        raise ValueError(f"POS={curve['pos']:g} 的 VA 锚点重合或间距不足，无法区分对应误差：{values.tolist()}")
+
+
+def interpolate_va_error(va: float, curve: dict[str, float]) -> float:
+    """Sort VA/error pairs together and interpolate between neighboring VA knots."""
+    validate_va_knots(curve)
+    x = np.array([curve["va_3"], curve["va_88"], curve["va_3m"]])
+    y = np.array([0.0, curve["err_88"], curve["err_3m"]])
+    order = np.argsort(x)
+    return float(np.interp(va, x[order], y[order]))
 
 
 def interpolate_distance_axis(curves: list[dict[str, float]], pos: float) -> dict[str, float]:

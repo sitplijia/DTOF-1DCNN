@@ -45,6 +45,9 @@ class InterpolationPoint:
     interpolated_err_3: float
     interpolated_err_88: float
     interpolated_err_3m: float
+    va_3: float = 0.0
+    va_88: float = 0.0
+    va_3m: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -56,3 +59,4 @@ class CalibrationResult:
     summaries: tuple[DistanceSummary, ...]
     interpolation_points: tuple[InterpolationPoint, ...]
     measurements: tuple[Measurement, ...]
+    interpolation_axis: str = "csum"

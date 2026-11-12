@@ -1,0 +1,17 @@
+{
+  "model": "advance = A + Ku*min(V0-VA, V0-Vt) + Ks*max(Vt-VA, 0)",
+  "A_bin": 0.1668533967326943,
+  "Ku": 2.9527422613666245,
+  "Ks": 2.175065820618541,
+  "V0_bin": 3.770866235572671,
+  "Vt_bin": 2.272167128598686,
+  "xt_bin": 1.498699106973985,
+  "max_absolute_residual_bin": 0.2656051068017853,
+  "mean_absolute_residual_bin": 0.10436216627850614,
+  "max_absolute_residual_mm_at_15_mm_per_bin": 3.9840766020267795,
+  "fitted_boundary_advance_bin": 4.5921255869671995,
+  "points": 28,
+  "validation": "In-sample fit of deterministic expected features; not independent measurement accuracy.",
+  "saturation_onset_signal_lambda": 4.218279323578837,
+  "reference_signal_lambda": 0.001
+}

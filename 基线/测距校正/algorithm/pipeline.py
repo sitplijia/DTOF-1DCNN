@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from .features import load_measurements, mean_valid
-from .interpolation import build_calibration_curves, interpolate_csum_error, interpolate_distance_axis
+from .interpolation import build_calibration_curves, interpolate_csum_error, interpolate_distance_axis, interpolate_va_error
 from .models import CalibrationResult, DistanceSummary, InterpolationPoint, Measurement, TARGETS
 
 
@@ -25,8 +25,13 @@ def calibrate(
     reference_pos: float,
     va_coefficient: float,
     snr_threshold: float,
+    interpolation_axis: str = "csum",
 ) -> CalibrationResult:
     """Extract features, fit intercept, interpolate errors, and summarize."""
+    if interpolation_axis not in ("csum", "va"):
+        raise ValueError("Interpolation axis must be csum or va")
+    def frame_error(row, curve):
+        return interpolate_va_error(row.va, curve) if interpolation_axis == "va" else interpolate_csum_error(row.csum, curve)
     if set(files) != set(TARGETS):
         raise ValueError("Provide one CSV for each target: 3%, 88%, and 3m")
     if not np.isfinite(va_coefficient):
@@ -46,7 +51,7 @@ def calibrate(
         raise ValueError(f"No SNR-valid 3% samples at reference POS={reference_pos:g}")
     intercept = float(mean_valid(reference_rows, "va_distance_mm") - reference_pos)
 
-    curves = build_calibration_curves(measurements)
+    curves = build_calibration_curves(measurements, interpolation_axis)
     positions = sorted({row.pos for row in measurements})
     summaries: list[DistanceSummary] = []
     interpolation_points: list[InterpolationPoint] = []
@@ -62,10 +67,11 @@ def calibrate(
                 pos=pos,
                 va_distance_3=curve["d_3"], va_distance_88=curve["d_88"], va_distance_3m=curve["d_3m"],
                 csum_3=curve["cs_3"], csum_88=curve["cs_88"], csum_3m=curve["cs_3m"],
+                va_3=curve["va_3"], va_88=curve["va_88"], va_3m=curve["va_3m"],
                 err_88=curve["err_88"], err_3m=curve["err_3m"],
-                interpolated_err_3=float(np.mean([interpolate_csum_error(row.csum, curve) for row in valid_at_pos["3%"]])),
-                interpolated_err_88=float(np.mean([interpolate_csum_error(row.csum, curve) for row in valid_at_pos["88%"]])),
-                interpolated_err_3m=float(np.mean([interpolate_csum_error(row.csum, curve) for row in valid_at_pos["3m"]])),
+                interpolated_err_3=float(np.mean([frame_error(row, curve) for row in valid_at_pos["3%"]])),
+                interpolated_err_88=float(np.mean([frame_error(row, curve) for row in valid_at_pos["88%"]])),
+                interpolated_err_3m=float(np.mean([frame_error(row, curve) for row in valid_at_pos["3m"]])),
             ))
         for target in TARGETS:
             group = [row for row in measurements if row.target == target and row.pos == pos]
@@ -73,7 +79,7 @@ def calibrate(
             corrected: list[float] = []
             raw_centroid: list[float] = []
             for row in valid:
-                error = interpolate_csum_error(row.csum, curve)
+                error = frame_error(row, curve)
                 corrected.append(float(row.va_distance_mm - intercept - error))
                 raw_centroid.append(float(row.raw_distance_mm))
             mean, std, distance_range = _summarize(corrected)
@@ -88,6 +94,7 @@ def calibrate(
         va_coefficient=va_coefficient, snr_threshold=snr_threshold,
         summaries=tuple(summaries), interpolation_points=tuple(interpolation_points),
         measurements=tuple(measurements),
+        interpolation_axis=interpolation_axis,
     )
 
 
@@ -102,6 +109,7 @@ def save_summary_csv(path: str | Path, result: CalibrationResult) -> None:
     fields.extend((
         "d_va_3_mm", "d_va_88_mm", "d_va_3m_mm", "csum_3", "csum_88", "csum_3m",
         "err_88_mm", "err_3m_mm", "interp_err_3_mm", "interp_err_88_mm", "interp_err_3m_mm",
+        "va_3", "va_88", "va_3m", "interpolation_axis",
         "intercept_mm", "reference_POS", "va_coefficient", "snr_threshold",
     ))
     by_pos: dict[float, dict[str, DistanceSummary]] = {}
@@ -129,6 +137,9 @@ def save_summary_csv(path: str | Path, result: CalibrationResult) -> None:
                 ("d_va_3_mm", point.va_distance_3 if point else None),
                 ("d_va_88_mm", point.va_distance_88 if point else None),
                 ("d_va_3m_mm", point.va_distance_3m if point else None),
+                ("va_3", point.va_3 if point else None),
+                ("va_88", point.va_88 if point else None),
+                ("va_3m", point.va_3m if point else None),
                 ("csum_3", point.csum_3 if point else None),
                 ("csum_88", point.csum_88 if point else None),
                 ("csum_3m", point.csum_3m if point else None),
@@ -140,6 +151,7 @@ def save_summary_csv(path: str | Path, result: CalibrationResult) -> None:
             ):
                 row[name] = value
             row.update({
+                "interpolation_axis": result.interpolation_axis,
                 "intercept_mm": result.intercept_mm,
                 "reference_POS": result.reference_pos,
                 "va_coefficient": result.va_coefficient,

@@ -29,11 +29,9 @@ def default_csv(target: str) -> str:
 
 
 class DistanceCalibrationApp:
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Misc, interpolation_axis: str = "csum") -> None:
         self.root = root
-        root.title("dToF 测距校准")
-        root.geometry("1180x760")
-        root.minsize(930, 600)
+        self.interpolation_axis = interpolation_axis
         self.result = None
         self.path_vars = {target: tk.StringVar(value=default_csv(target)) for target in TARGETS}
         self.snr_var = tk.StringVar(value="12")
@@ -77,6 +75,9 @@ class DistanceCalibrationApp:
         ttk.Label(outer, textvariable=self.intercept_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
 
         notebook = ttk.Notebook(outer)
+        self.notebook = notebook
+        self.interpolation_tabs = {}
+        self.interpolation_tables = {}
         notebook.pack(fill="both", expand=True)
 
         means_tab = ttk.Frame(notebook, padding=5)
@@ -98,17 +99,34 @@ class DistanceCalibrationApp:
             "raw_3m": ("3m原始质心标准差 (mm)", 155),
         })
 
-        interpolation_tab = ttk.Frame(notebook, padding=5)
-        notebook.add(interpolation_tab, text="插值距离、csum和误差")
-        self.interpolation_table = self._make_table(interpolation_tab, {
+        for axis in ("csum", "va"):
+            interpolation_tab = ttk.Frame(notebook, padding=5)
+            notebook.add(interpolation_tab, text=f"插值距离、{axis}和误差")
+            self.interpolation_tabs[str(interpolation_tab)] = axis
+            ttk.Label(interpolation_tab, text="选择本页后点击上方“计算”；测距均值、标准差和导出随当前插值方式更新。").pack(anchor="w", pady=(0, 5))
+            self.interpolation_tables[axis] = self._make_table(interpolation_tab, {
             "pos": ("POS", 85), "d3": ("3%补偿距离 (mm)", 130),
             "d88": ("88%补偿距离 (mm)", 135), "d3m": ("3m补偿距离 (mm)", 130),
-            "cs3": ("3% csum", 100), "cs88": ("88% csum", 100),
-            "cs3m": ("3m csum", 100), "err88": ("err_88 (mm)", 110),
+            "cs3": (f"3% {axis}", 100), "cs88": (f"88% {axis}", 100),
+            "cs3m": (f"3m {axis}", 100), "err88": ("err_88 (mm)", 110),
             "err3m": ("err_3m (mm)", 110), "used3": ("3%平均插值误差", 140),
             "used88": ("88%平均插值误差", 145), "used3m": ("3m平均插值误差", 140),
         })
+        self.interpolation_table = self.interpolation_tables[self.interpolation_axis]
+        notebook.bind("<<NotebookTabChanged>>", self._select_interpolation)
         ttk.Label(outer, textvariable=self.status_var, wraplength=1120).pack(fill="x", pady=(8, 0))
+
+    def _select_interpolation(self, event=None) -> None:
+        axis = self.interpolation_tabs.get(self.notebook.select())
+        if axis is None or axis == self.interpolation_axis:
+            return
+        self.interpolation_axis = axis
+        self.interpolation_table = self.interpolation_tables[axis]
+        self.result = None
+        for table in (self.means_table, self.stats_table, *self.interpolation_tables.values()):
+            table.delete(*table.get_children())
+        self.intercept_var.set("截距：—")
+        self.status_var.set(f"已切换为 {axis} 插值，请点击“计算”。")
 
     @staticmethod
     def _make_table(parent: ttk.Frame, headings: dict[str, tuple[str, int]]) -> ttk.Treeview:
@@ -163,14 +181,15 @@ class DistanceCalibrationApp:
             files = {target: self.path_vars[target].get().strip() for target in TARGETS}
             if any(not path for path in files.values()):
                 raise ValueError("Choose a CSV file for each of the three targets.")
-            result = calibrate(files, reference_pos, coefficient, snr_threshold)
+            result = calibrate(files, reference_pos, coefficient, snr_threshold, self.interpolation_axis)
         except (OSError, ValueError) as exc:
             messagebox.showerror("计算失败", str(exc), parent=self.root)
             return
         self.result = result
         self.means_table.delete(*self.means_table.get_children())
         self.stats_table.delete(*self.stats_table.get_children())
-        self.interpolation_table.delete(*self.interpolation_table.get_children())
+        for table in self.interpolation_tables.values():
+            table.delete(*table.get_children())
         # Pivot long-form summaries into one row per POS, with one mean per target.
         by_pos = {}
         for item in result.summaries:
@@ -199,8 +218,8 @@ class DistanceCalibrationApp:
             self.interpolation_table.insert("", "end", values=(
                 f"{point.pos:g}", self._format(point.va_distance_3),
                 self._format(point.va_distance_88), self._format(point.va_distance_3m),
-                self._format(point.csum_3), self._format(point.csum_88),
-                self._format(point.csum_3m), self._format(point.err_88),
+                self._format(point.va_3 if self.interpolation_axis == "va" else point.csum_3), self._format(point.va_88 if self.interpolation_axis == "va" else point.csum_88),
+                self._format(point.va_3m if self.interpolation_axis == "va" else point.csum_3m), self._format(point.err_88),
                 self._format(point.err_3m), self._format(point.interpolated_err_3),
                 self._format(point.interpolated_err_88), self._format(point.interpolated_err_3m),
             ))
@@ -209,6 +228,7 @@ class DistanceCalibrationApp:
             f"参考 POS = {result.reference_pos:g}  |  K = {result.va_coefficient:g}（无量纲）"
         )
         self.status_var.set(
+            f"当前插值方式：{self.interpolation_axis}；"
             f"已处理 {len(result.measurements)} 条记录；SNR有效帧："
             f"{sum(row.va is not None for row in result.measurements)}. "
             "原始 ctd 标准差以 mm 显示，用于对比。"
@@ -220,7 +240,7 @@ class DistanceCalibrationApp:
             return
         path = filedialog.asksaveasfilename(
             title="保存测距统计", defaultextension=".csv",
-            initialfile="distance_calibration_summary.csv",
+            initialfile=f"distance_calibration_{self.interpolation_axis}_summary.csv",
             filetypes=(("CSV files", "*.csv"),),
         )
         if path:
@@ -234,6 +254,9 @@ class DistanceCalibrationApp:
 
 def main() -> None:
     root = tk.Tk()
+    root.title("dToF 测距校准")
+    root.geometry("1280x850")
+    root.minsize(1000, 700)
     DistanceCalibrationApp(root)
     root.mainloop()
 
