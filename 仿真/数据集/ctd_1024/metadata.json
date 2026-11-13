@@ -5,10 +5,10 @@
   "template_clipped": false,
   "edge_rule": "zero-padded shift; clip to observation window; renormalize retained signal to sum=1; signal_lambda refers to signal inside observation window",
   "ideal_signal_ctd_bin": 1024.0,
-  "ideal_signal_va_bin": 3.783841708690572,
+  "ideal_signal_va_bin": 3.7838417086906193,
   "histogram_shape": [
     6,
-    10,
+    24,
     100,
     2048
   ],

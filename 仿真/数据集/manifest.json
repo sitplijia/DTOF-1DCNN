@@ -9,8 +9,8 @@
     "ctd_1792"
   ],
   "centroid_count": 7,
-  "cells_per_centroid": 60,
+  "cells_per_centroid": 144,
   "frames_per_cell": 100,
   "num_cycles": 5000,
-  "total_histograms": 42000
+  "total_histograms": 100800
 }

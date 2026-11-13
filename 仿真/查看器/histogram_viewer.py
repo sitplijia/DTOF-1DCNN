@@ -13,6 +13,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from dataset_reader import DEFAULT_DATASET, FEATURES, discover_centroids, load_cube
+from merge_tab import MergeTab
 
 
 def format_value(value: float, unit: str = "") -> str:
@@ -54,7 +55,7 @@ class HistogramViewer:
         selectors.pack(fill="x", pady=(0, 12))
         self.center_box = self.combo(selectors, "质心位置", 14, self.load_center)
         self.signal_box = self.combo(selectors, "信号 λ（全谱/周期）", 15, self.schedule_refresh)
-        self.background_box = self.combo(selectors, "背景 λ（每bin/周期）", 16, self.schedule_refresh)
+        self.background_box = self.combo(selectors, "背景 λ（每bin/周期）", 16, self.change_background)
         frames = ttk.Frame(selectors)
         frames.pack(side="left", padx=(0, 14))
         ttk.Label(frames, text="帧号（从1开始）").pack(anchor="w")
@@ -66,13 +67,22 @@ class HistogramViewer:
         self.frame_box.pack(side="left")
         ttk.Button(frame_row, text="上一帧", command=lambda: self.change_frame(-1)).pack(side="left", padx=(6, 3))
         ttk.Button(frame_row, text="下一帧", command=lambda: self.change_frame(1)).pack(side="left")
-        self.frame_number.trace_add("write", self.schedule_refresh)
+        self.frame_number.trace_add("write", self.change_frame_selection)
         self.frame_box.bind("<Return>", self.refresh)
         self.show_expected = tk.BooleanVar(value=False)
         ttk.Checkbutton(selectors, text="叠加模型期望", variable=self.show_expected,
                         command=self.schedule_refresh).pack(side="left", pady=(20, 0))
 
-        body = ttk.Frame(outer)
+        notebook = ttk.Notebook(outer)
+        notebook.pack(fill="both", expand=True)
+        single_page = ttk.Frame(notebook)
+        merge_page = ttk.Frame(notebook)
+        notebook.add(single_page, text="单直方图")
+        notebook.add(merge_page, text="子直方图合并")
+        self.merge_tab = MergeTab(merge_page)
+        self.merge_tab.on_background_change = self.change_background_from_merge
+        self.merge_tab.on_start_frame_change = self.change_start_from_merge
+        body = ttk.Frame(single_page)
         body.pack(fill="both", expand=True)
         plots = ttk.Frame(body)
         plots.pack(side="left", fill="both", expand=True)
@@ -150,6 +160,7 @@ class HistogramViewer:
         if self.future is not None:
             self.future.cancel()
         self.cube = self.sample = None
+        self.merge_tab.set_cube(None)
         for collection in (self.metric_values, self.mean_values, self.mean_counts):
             for value in collection.values():
                 value.set("—")
@@ -185,7 +196,31 @@ class HistogramViewer:
         self.frame_box.configure(to=self.cube.frames)
         self.mean_heading.set(f"{self.cube.frames}帧均值")
         self.frame_number.set("1")
+        self.merge_tab.set_cube(self.cube)
+        self.merge_tab.background.current(self.background_box.current())
         self.refresh()
+
+    def change_background(self, event=None):
+        if self.cube is not None:
+            self.merge_tab.background.current(self.background_box.current())
+            self.merge_tab.refresh_background()
+        self.schedule_refresh()
+
+    def change_background_from_merge(self, index):
+        if self.cube is not None and index >= 0:
+            self.background_box.current(index)
+            self.schedule_refresh()
+
+    def change_frame_selection(self, *args):
+        if hasattr(self, 'merge_tab') and self.cube is not None:
+            value = self.frame_number.get()
+            if self.merge_tab.start.get() != value:
+                self.merge_tab.start.set(value)
+        self.schedule_refresh()
+
+    def change_start_from_merge(self, value):
+        if self.frame_number.get() != value:
+            self.frame_number.set(value)
 
     def schedule_refresh(self, *args):
         if self.refresh_job is not None:

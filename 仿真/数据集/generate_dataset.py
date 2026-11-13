@@ -43,7 +43,7 @@ def draw_grid(arrays: dict, grid_rows: list[dict], centroid: float, output: Path
     import matplotlib.pyplot as plt
 
     signals, backgrounds = arrays["signal_lambda"], arrays["background_lambda"]
-    fig, axes = plt.subplots(2, 4, figsize=(22, 9), constrained_layout=True)
+    fig, axes = plt.subplots(4, 2, figsize=(24, 18), constrained_layout=True)
     fig.suptitle(f"Dataset | nominal signal centroid={centroid:g} bin (1-based)\n"
                  f"{arrays['histograms'].shape[2]} histograms per cell, 5000 cycles by default; blank = no finite feature")
     keys = ("ctd_mean", "va_mean", "csum_mean", "snr_mean", "sa_avg_mean",

@@ -82,6 +82,11 @@ def extract_features(histograms: np.ndarray, threshold: float) -> dict:
                     status=np.full(count, "analysis_error", dtype="U16"),
                     error=np.full(count, "", dtype="U160"))
     for k, histogram in enumerate(histograms):
+        if not np.any(histogram):
+            for name in ("csum", "snr", "sa_avg"):
+                features[name][k] = 0.0
+            features["status"][k] = "no_counts"
+            continue
         peak = int(np.argmax(histogram))
         edge = peak < 15 or peak + 15 > bins
         features["window_clipped"][k] = edge

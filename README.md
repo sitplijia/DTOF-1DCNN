@@ -11,7 +11,7 @@ Peak validity requires only `snr >= 12`; no csum threshold is used.
 | [基线](基线/README.md) | Python实现、完整算法定义、检查报告及示例图片 |
 | [数据](数据/) | 有背景光与无背景光的6组CSV实测数据 |
 | [理论](理论/) | va补偿推导、背景扣除推导及1DCNN扩展方案 |
-| [仿真](仿真/README.md) | SPAD模型、3%与88%对比、42000条lambda网格数据集及直方图GUI |
+| [仿真](仿真/README.md) | SPAD模型、3%与88%对比、100800条lambda网格数据集及直方图GUI |
 
 ## 运行
 
